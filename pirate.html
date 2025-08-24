@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Aventure Pirate</title>
+  <style>
+    body { font-family: Arial; background:#111; color:white; text-align:center; }
+    #game { max-width:900px; margin:auto; }
+    .hidden { display:none; }
+    .btn { margin:5px; padding:10px 20px; font-size:16px; cursor:pointer; }
+    .log { background:#000; color:#0f0; padding:5px; height:150px; overflow-y:auto; text-align:left; }
+    .bar { height:20px; background:#333; margin:3px 0; border-radius:4px; }
+    .bar span { display:block; height:100%; background:red; border-radius:4px; }
+    .card { background:#222; padding:10px; margin:10px; border-radius:8px; }
+    img { max-height:220px; }
+    #fond { width:100%; height:300px; object-fit:cover; border-radius:8px; }
+  </style>
+</head>
+<body>
+<div id="game">
+
+  <!-- MENU -->
+  <div id="menu">
+    <h1>🏴‍☠️ Aventure Pirate</h1>
+    <img id="fond" src="images/fond_ile.png" alt="fond">
+    <div class="card">
+      <img src="images/joueur.png" alt="joueur" style="height:120px"><br>
+      <div id="stats"></div>
+      <div class="bar"><span id="pvBar"></span></div>
+    </div>
+    <button class="btn" onclick="ile()">🌴 Ile</button>
+    <button class="btn" onclick="grotte()">🏝️ Grotte</button>
+    <button class="btn" onclick="villageois()">👨 Villageois</button>
+    <button class="btn" onclick="repos()">💤 Repos</button>
+    <button class="btn" onclick="magasin()">🏪 Magasin</button>
+    <button id="b-dragon" class="btn hidden" onclick="combat(true)">🐉 Dragon</button>
+    <div class="card">
+      <div id="mstats"></div>
+      <div class="bar"><span id="mpvBar"></span></div>
+      <div id="monsterImgMenu"></div>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <!-- COMBAT -->
+  <div id="combat" class="hidden">
+    <h2>⚔️ Combat</h2>
+    <img id="fondCombat" src="images/fond_mer.png" alt="fond combat">
+    <div id="monsterImg"></div>
+    <div class="card">
+      <button class="btn" onclick="attaque()">⚔️ Attaquer</button>
+      <button class="btn" onclick="potion()">🧪 Potion</button>
+      <button class="btn" onclick="finCombat()">↩️ Fuir</button>
+    </div>
+    <div class="card">
+      <h3>📊 Statistiques</h3>
+      <div id="stats2"></div>
+      <div class="bar"><span id="pvBar2"></span></div>
+      <div id="mstats2" style="margin-top:10px"></div>
+      <div class="bar"><span id="mpvBar2"></span></div>
+    </div>
+    <div class="log" id="log2"></div>
+  </div>
+
+  <!-- MAGASIN -->
+  <div id="shop" class="hidden">
+    <h2>🏪 Magasin Pirate</h2>
+    <img src="images/fond_magasin.png" id="fondShop">
+    <div id="shop-money"></div>
+    <button class="btn" onclick="acheter('potion')">🧪 Potion (10 or)</button>
+    <button class="btn" onclick="acheter('arme')">⚔️ Arme (30 or)</button>
+    <button class="btn" onclick="acheter('pv')">❤️ +5 PV Max (40 or)</button>
+    <button class="btn" onclick="acheter('armure')">🛡️ Armure (35 or)</button>
+    <br><br><button class="btn" onclick="closeShop()">↩️ Retour</button>
+  </div>
+
+</div>
+
+<script>
+const G = {
+  niveau:1, xp:0, xpNext:10,
+  pvMax:25, pv:25,
+  atkMin:5, atkMax:8,
+  arme:0, armure:0,
+  potions:3, or:20,
+  monstre:null, dragonUnlocked:false
+};
+
+const monstres = [
+  {nom:"Petit Pirate", pvMax:12, atkMin:3, atkMax:6, xp:6, or:5, img:"petit_pirate.png"},
+  {nom:"Capitaine Pirate", pvMax:20, atkMin:4, atkMax:8, xp:12, or:15, img:"capitaine.png"}
+];
+const dragon = {nom:"Dragon Marin", pvMax:50, atkMin:6, atkMax:12, xp:50, or:100, img:"dragon_mechant.png"};
+
+function log(txt, zone="log"){
+  const el=document.getElementById(zone);
+  el.innerHTML += txt+"<br>";
+  el.scrollTop=el.scrollHeight;
+}
+function setHTML(id,html){const el=document.getElementById(id); if(el) el.innerHTML=html;}
+function setBarWidth(id,ratio){const el=document.getElementById(id); if(el) el.style.width=Math.max(0,Math.min(100,ratio))+"%";}
+
+function refreshHUD(){
+  const playerTxt = `Niv ${G.niveau} | XP ${G.xp}/${G.xpNext}<br>`+
+    `PV ${G.pv}/${G.pvMax} | Potions ${G.potions}<br>`+
+    `Or ${G.or} | Atk ${G.atkMin+G.arme}-${G.atkMax+G.arme} | Armure ${G.armure}`;
+  let monstreTxt="Aucun monstre", mRatio=0;
+  if(G.monstre){
+    monstreTxt=`${G.monstre.nom} — PV ${G.monstre.pv}/${G.monstre.pvMax} | Dégâts ${G.monstre.atkMin}-${G.monstre.atkMax}`;
+    mRatio=(G.monstre.pv/G.monstre.pvMax)*100;
+    document.getElementById("monsterImgMenu").innerHTML=`<img src="images/${G.monstre.img}">`;
+  } else {
+    document.getElementById("monsterImgMenu").innerHTML="";
+  }
+  setHTML("stats",playerTxt); setBarWidth("pvBar",(G.pv/G.pvMax)*100);
+  setHTML("mstats",monstreTxt); setBarWidth("mpvBar",mRatio);
+  setHTML("stats2",playerTxt); setBarWidth("pvBar2",(G.pv/G.pvMax)*100);
+  setHTML("mstats2",monstreTxt); setBarWidth("mpvBar2",mRatio);
+  const shopMoney=document.getElementById("shop-money"); if(shopMoney) shopMoney.textContent=`Tu as ${G.or} or.`;
+  document.getElementById("b-dragon").style.display=G.dragonUnlocked?"inline-block":"none";
+}
+
+function xpGain(x){
+  G.xp+=x;
+  if(G.xp>=G.xpNext){G.niveau++;G.xp=0;G.xpNext+=10;G.pvMax+=5;G.pv=G.pvMax;G.atkMin++;log("⚡ LEVEL UP !","log");}
+}
+
+function combat(boss=false){
+  document.getElementById("menu").classList.add("hidden");
+  document.getElementById("combat").classList.remove("hidden");
+  const M=boss?{...dragon}:{...monstres[Math.floor(Math.random()*monstres.length)]};
+  M.pv=M.pvMax; G.monstre=M;
+  document.getElementById("fondCombat").src="images/fond_mer.png";
+  document.getElementById("monsterImg").innerHTML=`<img src="images/${M.img}" alt="${M.nom}">`;
+  log(`⚔️ Un ${M.nom} apparaît !`,"log2");
+  refreshHUD();
+}
+
+function attaque(){
+  if(!G.monstre) return;
+  const dmg=Math.floor(Math.random()*(G.atkMax-G.atkMin+1)+G.atkMin)+G.arme;
+  G.monstre.pv-=dmg; if(G.monstre.pv<0) G.monstre.pv=0;
+  log(`Tu infliges ${dmg} à ${G.monstre.nom}`,"log2");
+  if(G.monstre.pv<=0){victoire();return;}
+  riposte();
+  refreshHUD();
+}
+function riposte(){
+  const dmg=Math.floor(Math.random()*(G.monstre.atkMax-G.monstre.atkMin+1)+G.monstre.atkMin)-G.armure;
+  const real=Math.max(0,dmg);
+  G.pv-=real; if(G.pv<0) G.pv=0;
+  log(`${G.monstre.nom} t'attaque et inflige ${real} dégâts`,"log2");
+  if(G.pv<=0){gameOver();}
+}
+function potion(){
+  if(G.potions<=0){log("❌ Plus de potions","log2");return;}
+  const heal=Math.floor(Math.random()*8+5);
+  G.pv=Math.min(G.pv+heal,G.pvMax);G.potions--;
+  log(`🧪 Potion +${heal} PV`,"log2");
+  riposte(); refreshHUD();
+}
+function victoire(){
+  log(`🎉 Tu as vaincu ${G.monstre.nom}`,"log2");
+  G.or+=G.monstre.or; xpGain(G.monstre.xp);
+  G.monstre=null; finCombat();
+}
+function gameOver(){
+  alert("💀 Game Over !"); location.reload();
+}
+function finCombat(){
+  document.getElementById("combat").classList.add("hidden");
+  document.getElementById("menu").classList.remove("hidden");
+  document.getElementById("log2").innerHTML="";
+  refreshHUD();
+}
+
+// ---- Aventure ----
+function ile(){document.getElementById("fond").src="images/fond_ile.png"; if(Math.random()<0.5) combat(); else {const g=Math.floor(Math.random()*15+5);G.or+=g;log("💰 Trouvé "+g+" or");refreshHUD();}}
+function grotte(){document.getElementById("fond").src="images/fond_grotte.png"; const e=[["Toujours devant toi...",["avenir","futur"]],["Plus je suis grand, moins tu vois",["obscurité","nuit"]]]; const [q,r]=e[Math.floor(Math.random()*e.length)]; const rep=prompt(q); if(rep&&r.includes(rep.toLowerCase())){const g=Math.floor(Math.random()*15+5);G.or+=g;log("Bonne réponse ! Or+"+g);}else{const d=Math.floor(Math.random()*5+2);G.pv-=d;log("Mauvaise réponse ! PV-"+d);} refreshHUD();}
+function villageois(){ if(G.or>=10){G.or-=10;log("👨 Villageois: 'Le dragon se cache sur son île !'");G.dragonUnlocked=true;} else {G.pv-=5;log("Pas assez d'or ! -5 PV");} refreshHUD();}
+function repos(){document.getElementById("fond").src="images/fond_ile.png"; const s=Math.floor(Math.random()*6+5);G.pv=Math.min(G.pv+ s,G.pvMax);log("Repos +"+s+" PV");refreshHUD();}
+
+// ---- Shop ----
+function magasin(){document.getElementById("fond").src="images/fond_magasin.png";document.getElementById("menu").classList.add("hidden");document.getElementById("shop").classList.remove("hidden");refreshHUD();}
+function closeShop(){document.getElementById("shop").classList.add("hidden");document.getElementById("menu").classList.remove("hidden");document.getElementById("fond").src="images/fond_ile.png";refreshHUD();}
+function acheter(item){if(item=="potion"&&G.or>=10){G.or-=10;G.potions++;}else if(item=="arme"&&G.or>=30){G.or-=30;G.arme++;}else if(item=="pv"&&G.or>=40){G.or-=40;G.pvMax+=5;G.pv=G.pvMax;}else if(item=="armure"&&G.or>=35){G.or-=35;G.armure++;}else{log("❌ Pas assez d'or");return;}refreshHUD();}
+
+refreshHUD();
+</script>
+</body>
+</html>
